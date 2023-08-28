@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd 
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd">
+    <http:listener-config name="customer-db-httpListenerConfig">
+        <http:listener-connection host="localhost" port="8081" />
+    </http:listener-config>
+    <apikit:config name="customer-db-config" api="customer-db.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <db:config name="Database_Config" doc:name="Database Config" doc:id="da91dad2-57ab-4ec5-bc03-90373fa1f303" >
+		<db:my-sql-connection host="${db.host}" port="${db.port}" user="${secure::db.user}" password="${secure::db.password}" database="${db.database}" />
+	</db:config>
+	<configuration-properties doc:name="Configuration properties" doc:id="6cae2e65-50c7-4ee1-b057-941320a80746" file="qa.properties" />
+	<secure-properties:config name="Secure_Properties_Config" doc:name="Secure Properties Config" doc:id="645a00dd-0bff-4966-abdc-14e2e1864a7b" file="qa-secure.properties" key="123456789" >
+		<secure-properties:encrypt algorithm="Blowfish" />
+	</secure-properties:config>
+	<configuration doc:name="Configuration" doc:id="1e9f40b6-11ba-46b8-98f5-e17ff39a691d" defaultErrorHandler-ref="global-exception-handlingError_Handler" />
+	<flow name="customer-db-main">
+        <http:listener config-ref="customer-db-httpListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]" reasonPhrase="#[vars.httpReason]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="customer-db-config" />
+    </flow>
+	<flow name="put:\updateCustomer:application\json:customer-db-config">
+        <db:update doc:name="Update" doc:id="6887c721-17eb-48e5-a02f-47e1eaee9f07" config-ref="Database_Config">
+			<db:sql ><![CDATA[UPDATE pavan
+SET phone = :phone
+WHERE id = : id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	phone : payload.phone,
+	name : payload.name
+}]]]></db:input-parameters>
+		</db:update>
+		<ee:transform>
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  Message: "Telephone number updated success",
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="delete:\deleteCustomer:customer-db-config">
+        <ee:transform>
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  Message: "Customer deleted success...."
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="get:\getCustomerById:customer-db-config">
+        <set-variable value="#[attributes.queryParams.customerId]" doc:name="Set Variable" doc:id="223852d6-df27-474e-ab21-30905ada4b60" variableName="id"/>
+		<db:select doc:name="Select" doc:id="679ceb91-ecf5-4d8e-b65d-4c4d9ff2fa4e" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT * FROM pavan where id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{ 
+id : vars.id
+}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="59d4ce6b-18be-480d-b1cb-a152aa9def97" >
+			<when expression="#[sizeOf(payload)&gt;0]">
+				<ee:transform>
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="6e31e405-a6fa-4a21-8d3a-e0a99f667460" >
+					<ee:message >
+						<ee:set-payload ><![CDATA["for the given customer id there is no data exists"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+    </flow>
+    <flow name="post:\createCustomer:application\json:customer-db-config">
+		<foreach doc:name="For Each" doc:id="7b7263ac-db13-4b7c-b2da-d33d68d41a59" >
+			<db:insert doc:name="Insert" doc:id="841bf650-9906-4105-b3a5-890ab2ace51c" config-ref="Database_Config">
+			<db:sql><![CDATA[INSERT INTO pavan (id,name,phone)
+ VALUES :(:id,:name,:phone);]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+	id: payload.id,
+	name:payload.name,
+	phone:payload.phone,
+}]]]></db:input-parameters>
+		</db:insert>
+		</foreach>
+		<ee:transform doc:name="Transform Message" doc:id="c1667fbb-f2c8-497e-8241-3f18ad12daa7" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"message": "customer profile created successful"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+<!-- 		<foreach doc:name="For Each" doc:id="729a8d09-62aa-4210-801a-893113a58e72" > -->
+<!-- 			<choice doc:name="Choice" doc:id="995e4f09-7a31-4e34-856e-a34b787f417e"> -->
+<!-- 			<when expression='#[payload.country =="USA"]'> -->
+<!-- 				<ee:transform doc:name="Transform Message" doc:id="c5481a32-18e0-4897-8e36-dc3d9c5bafed"> -->
+<!-- 					<ee:message> -->
+<!-- 						<ee:set-payload><![CDATA["Transaction initiated from USA"]]></ee:set-payload> -->
+<!-- 					</ee:message> -->
+<!-- 				</ee:transform> -->
+<!-- 			</when> -->
+<!-- 			<when expression='payload.country =="INDIA"'> -->
+<!-- 				<ee:transform doc:name="Transform Message" doc:id="b2f0921b-7f6f-46e9-aa97-56b1907bd641"> -->
+<!-- 					<ee:message> -->
+<!-- 						<ee:set-payload><![CDATA["Transaction initiated from INDA"]]></ee:set-payload> -->
+<!-- 					</ee:message> -->
+<!-- 				</ee:transform> -->
+<!-- 					<logger level="INFO" doc:name="Logger" doc:id="a7644bee-8069-475d-8c6c-345bfa9a5d59" /> -->
+<!-- 					<logger level="INFO" doc:name="Logger" doc:id="d49d0c6f-0f68-4e38-915c-f5508d04e324" /> -->
+<!-- 			</when> -->
+<!-- 			<when expression='#[payload.country =="CANADA"]'> -->
+<!-- 				<ee:transform doc:name="Transform Message" doc:id="fccb95e3-ab72-4e91-b36a-40271ae174e4"> -->
+<!-- 					<ee:message> -->
+<!-- 						<ee:set-payload><![CDATA["Transaction initiated from CANADA"]]></ee:set-payload> -->
+<!-- 					</ee:message> -->
+<!-- 				</ee:transform> -->
+<!-- 			</when> -->
+<!-- 			<otherwise> -->
+<!-- 				<ee:transform doc:name="Transform Message" doc:id="35ab39f5-58e7-4bc5-abe6-c14c2e640e41"> -->
+<!-- 					<ee:message> -->
+<!-- 						<ee:set-payload><![CDATA["No countries matching since existing default flow"]]></ee:set-payload> -->
+<!-- 					</ee:message> -->
+<!-- 				</ee:transform> -->
+<!-- 			</otherwise> -->
+<!-- 		</choice> -->
+    </flow>
+</mule>

@@ -1,0 +1,75 @@
+#%RAML 1.0
+title: project-no-2
+baseUri: https://localhost:8081/api
+version: v1
+protocols:
+  - HTTP
+mediaType: 
+- application/json
+
+/getCustomerById:
+  get:
+    queryParameters:
+      customerId:
+    responses:
+      200:
+        body:
+          application/json:
+            example:
+              {
+                "id" : 5,
+                "name" : "Rama",
+                "email" : "rama@asd.com",
+                "address" : "Hyderabad",
+                "telephone" : 456465785
+              }
+
+/createCustomer:
+  post:
+    body:
+      application/json:
+        example:
+          {
+             "name" : "Jeff Wingert",
+             "email" : "jeff@asdf.com",
+             "address" : "California",
+             "telephone" : 2134542 
+          }
+    responses:
+      200:
+        body:
+          application/json:
+            example:
+              {
+                "Message" : "Customer created success"
+              }
+/updateCustomer:
+  put:
+    body:
+      application/json:
+        example:
+          {
+            "id" : 1,
+            "telephone" : 3245454
+          }
+    responses:
+      200:
+        body:
+          application/json:
+            example:
+              {
+                "Message" : "Telephone number updated success"
+              }
+/deleteCustomer:
+  delete:
+    queryParameters:
+      customerId:
+    responses:
+      200:
+        body:
+          application/json:
+            example:
+              {
+                "Message" : "Customer deleted success...."
+              }
+              
